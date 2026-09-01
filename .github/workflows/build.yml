@@ -9,17 +9,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
       - name: Create Android project
         shell: bash
         run: |
@@ -27,44 +21,24 @@ jobs:
           cat > settings.gradle.kts <<'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          rootProject.name = "DailyTextNow"
-          include(":app")
+          rootProject.name="DailyTextNow"; include(":app")
           EOF
           cat > build.gradle.kts <<'EOF'
-          plugins {
-              id("com.android.application") version "8.7.3" apply false
-              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
-          }
+          plugins { id("com.android.application") version "8.7.3" apply false; id("org.jetbrains.kotlin.android") version "2.0.21" apply false }
           EOF
           cat > app/build.gradle.kts <<'EOF'
           plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
-          android {
-              namespace = "com.dailytext.now"; compileSdk = 36
-              defaultConfig { applicationId = "com.dailytext.now"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "0.1.1" }
-              compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
-              kotlinOptions { jvmTarget = "17" }
-          }
-          dependencies {
-              implementation("androidx.core:core-ktx:1.15.0")
-              implementation("androidx.appcompat:appcompat:1.7.0")
-              implementation("org.jsoup:jsoup:1.18.3")
-          }
+          android { namespace="com.dailytext.now"; compileSdk=36; defaultConfig { applicationId="com.dailytext.now"; minSdk=26; targetSdk=35; versionCode=3; versionName="0.1.2" }; compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }; kotlinOptions { jvmTarget="17" } }
+          dependencies { implementation("androidx.core:core-ktx:1.15.0"); implementation("androidx.appcompat:appcompat:1.7.0"); implementation("org.jsoup:jsoup:1.18.3") }
           EOF
           cat > app/src/main/res/values/styles.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.DailyTextNow" parent="Theme.AppCompat.DayNight.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item></style></resources>
+          <resources><style name="Theme.DailyTextNow" parent="Theme.AppCompat.DayNight.NoActionBar"><item name="android:fontFamily">sans</item></style></resources>
           EOF
           cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-            <application android:allowBackup="true" android:label="오늘의 성구" android:theme="@style/Theme.DailyTextNow" android:usesCleartextTraffic="false">
-              <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
-            </application>
-          </manifest>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><application android:label="오늘의 성구" android:theme="@style/Theme.DailyTextNow"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
           EOF
           cat > app/src/main/java/com/dailytext/now/MainActivity.kt <<'EOF'
           package com.dailytext.now
-
           import android.Manifest
           import android.app.*
           import android.content.*
@@ -82,85 +56,18 @@ jobs:
           import java.time.LocalDate
           import kotlin.concurrent.thread
 
-          class MainActivity : AppCompatActivity() {
-              private lateinit var verseView: TextView
-              private lateinit var referenceView: TextView
-              private lateinit var progress: ProgressBar
-              private var todayUrl = ""
-
-              override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); createNotificationChannel(); buildScreen(); loadToday() }
-
-              private fun buildScreen() {
-                  val today = LocalDate.now(); val days = listOf("월요일","화요일","수요일","목요일","금요일","토요일","일요일")
-                  todayUrl = "https://wol.jw.org/ko/wol/dt/r8/lp-ko/${today.year}/${today.monthValue}/${today.dayOfMonth}"
-                  val root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER_HORIZONTAL; setPadding(48,80,48,60) }
-                  root.addView(TextView(this).apply { text="오늘의 성구"; textSize=30f; gravity=Gravity.CENTER; setTypeface(null,Typeface.BOLD) })
-                  root.addView(TextView(this).apply { text="${today.monthValue}월 ${today.dayOfMonth}일 ${days[today.dayOfWeek.value-1]}"; textSize=18f; gravity=Gravity.CENTER; setPadding(0,20,0,50) })
-                  progress=ProgressBar(this); verseView=TextView(this).apply { text="오늘의 성구를 불러오는 중..."; textSize=23f; gravity=Gravity.CENTER; setPadding(0,35,0,20) }
-                  referenceView=TextView(this).apply { textSize=18f; gravity=Gravity.CENTER; setTypeface(null,Typeface.BOLD); setPadding(0,0,0,50) }
-                  root.addView(progress); root.addView(verseView); root.addView(referenceView)
-                  root.addView(Button(this).apply { text="WOL에서 전체 내용 읽기"; setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(todayUrl))) } })
-                  root.addView(Button(this).apply { text="새로고침"; setOnClickListener { loadToday() } })
-                  setContentView(ScrollView(this).apply { addView(root) })
-              }
-
-              private fun loadToday() {
-                  progress.visibility=android.view.View.VISIBLE; verseView.text="오늘의 성구를 불러오는 중..."; referenceView.text=""
-                  thread {
-                      try { val r=fetchToday(); runOnUiThread { progress.visibility=android.view.View.GONE; verseView.text=r.first; referenceView.text=r.second; saveCache(r.first,r.second); requestNotification(r.first,r.second) } }
-                      catch(e:Exception) { val c=loadCache(); runOnUiThread { progress.visibility=android.view.View.GONE; if(c!=null){verseView.text=c.first;referenceView.text=c.second}else{verseView.text="오늘의 성구를 불러오지 못했습니다.";referenceView.text="WOL 연결 오류: ${e.message ?: "알 수 없는 오류"}"} } }
-                  }
-              }
-
-              private fun fetchToday(): Pair<String,String> {
-                  val today=LocalDate.now()
-                  val urls=listOf(
-                      "https://wol.jw.org/ko/wol/dt/r8/lp-ko/${today.year}/${today.monthValue}/${today.dayOfMonth}",
-                      "https://wol.jw.org/ko/wol/h/r8/lp-ko/${today.year}/${today.monthValue}/${today.dayOfMonth}"
-                  )
-                  var last:Exception?=null
-                  for(url in urls) {
-                      try {
-                          val response=Jsoup.connect(url)
-                              .userAgent("Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36")
-                              .referrer("https://wol.jw.org/ko/wol/h/r8/lp-ko")
-                              .header("Accept","text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                              .header("Accept-Language","ko-KR,ko;q=0.9,en-US;q=0.7,en;q=0.6")
-                              .followRedirects(true).ignoreHttpErrors(true).timeout(20000).execute()
-                          if(response.statusCode() !in 200..299) throw Exception("HTTP ${response.statusCode()}")
-                          val doc=response.parse(); val target="${today.monthValue}월${today.dayOfMonth}일"
-                          val heading=doc.select("h1,h2,h3").firstOrNull { it.text().replace(" ","").contains(target) } ?: throw Exception("오늘 날짜를 찾지 못했습니다")
-                          var current=heading.nextElementSibling()
-                          while(current!=null && current.tagName() !in listOf("h1","h2","h3")) {
-                              val candidates=if(current.tagName()=="p") listOf(current) else current.select("p")
-                              for(p in candidates) {
-                                  val text=p.text().trim()
-                                  val dash=maxOf(text.lastIndexOf('—'), text.lastIndexOf('–'))
-                                  if(dash>0 && text.length in 8..700) {
-                                      val verse=text.substring(0,dash).trim().trimEnd('.', ' ', '—', '–')
-                                      val ref=text.substring(dash+1).trim().trimEnd('.')
-                                      if(ref.any { it.isDigit() } && verse.isNotBlank()) return Pair(verse,ref)
-                                  }
-                              }
-                              current=current.nextElementSibling()
-                          }
-                          throw Exception("성구를 찾지 못했습니다")
-                      } catch(e:Exception) { last=e }
-                  }
-                  throw last ?: Exception("WOL 연결 실패")
-              }
-
-              private fun saveCache(v:String,r:String){getSharedPreferences("daily_text",MODE_PRIVATE).edit().putString("verse",v).putString("reference",r).putString("date",LocalDate.now().toString()).apply()}
-              private fun loadCache():Pair<String,String>?{val p=getSharedPreferences("daily_text",MODE_PRIVATE); if(p.getString("date","")!=LocalDate.now().toString()) return null; val v=p.getString("verse",null)?:return null; return Pair(v,p.getString("reference","")?:"")}
-              private fun requestNotification(v:String,r:String){if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.POST_NOTIFICATIONS),100);return};showNotification(v,r)}
-              private fun showNotification(v:String,r:String){val n=NotificationCompat.Builder(this,"daily_text").setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("오늘의 성구 · $r").setContentText(v).setStyle(NotificationCompat.BigTextStyle().bigText(v)).setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(false).build();getSystemService(NotificationManager::class.java).notify(1001,n)}
-              private fun createNotificationChannel(){if(Build.VERSION.SDK_INT>=26)getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("daily_text","오늘의 성구",NotificationManager.IMPORTANCE_HIGH).apply{description="오늘의 성구 알림"})}
+          class MainActivity:AppCompatActivity(){
+            lateinit var verse:TextView; lateinit var ref:TextView; lateinit var progress:ProgressBar; var wolUrl=""
+            override fun onCreate(b:Bundle?){super.onCreate(b);channel();screen();load()}
+            fun screen(){val d=LocalDate.now();val days=listOf("월요일","화요일","수요일","목요일","금요일","토요일","일요일");wolUrl="https://wol.jw.org/ko/wol/h/r8/lp-ko/${d.year}/${d.monthValue}/${d.dayOfMonth}";val root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER_HORIZONTAL;setPadding(48,80,48,60)};root.addView(TextView(this).apply{text="오늘의 성구";textSize=30f;gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD)});root.addView(TextView(this).apply{text="${d.monthValue}월 ${d.dayOfMonth}일 ${days[d.dayOfWeek.value-1]}";textSize=18f;gravity=Gravity.CENTER;setPadding(0,20,0,50)});progress=ProgressBar(this);verse=TextView(this).apply{textSize=23f;gravity=Gravity.CENTER;setPadding(0,35,0,20)};ref=TextView(this).apply{textSize=18f;gravity=Gravity.CENTER;setTypeface(null,Typeface.BOLD);setPadding(0,0,0,50)};root.addView(progress);root.addView(verse);root.addView(ref);root.addView(Button(this).apply{text="WOL에서 전체 내용 읽기";setOnClickListener{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(wolUrl)))}});root.addView(Button(this).apply{text="새로고침";setOnClickListener{load()}});setContentView(ScrollView(this).apply{addView(root)})}
+            fun load(){progress.visibility=android.view.View.VISIBLE;verse.text="오늘의 성구를 불러오는 중...";ref.text="";thread{try{val r=fetch();runOnUiThread{progress.visibility=android.view.View.GONE;verse.text=r.first;ref.text=r.second;save(r.first,r.second);notify(r.first,r.second)}}catch(e:Exception){runOnUiThread{progress.visibility=android.view.View.GONE;verse.text="오늘의 성구를 불러오지 못했습니다.";ref.text="WOL 연결 오류: ${e.message}"}}}}
+            fun fetch():Pair<String,String>{val d=LocalDate.now();val doc=Jsoup.connect(wolUrl).userAgent("Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36").header("Accept-Language","ko-KR,ko;q=0.9").timeout(20000).get();val target="${d.monthValue}월${d.dayOfMonth}일";val h=doc.select("h1,h2,h3,h4").firstOrNull{it.text().replace(Regex("\\s"),"").contains(target)}?:throw Exception("오늘 날짜를 찾지 못했습니다");val all=doc.select("h1,h2,h3,h4,p");val hi=all.indexOf(h);if(hi<0)throw Exception("날짜 위치 오류");for(i in hi+1 until all.size){val e=all[i];if(e.tagName().matches(Regex("h[1-4]")))break;if(e.tagName()!="p")continue;val t=e.text().trim();val dash=listOf(t.indexOf('—'),t.indexOf('–')).filter{it>0}.minOrNull()?:-1;if(dash>0){val v=t.substring(0,dash).trim();val r=t.substring(dash+1).trim().trimEnd('.');if(v.isNotBlank()&&r.any{it.isDigit()})return Pair(v,r)}};throw Exception("성구를 찾지 못했습니다")}
+            fun save(v:String,r:String){getSharedPreferences("daily_text",MODE_PRIVATE).edit().putString("verse",v).putString("reference",r).apply()}
+            fun notify(v:String,r:String){if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.POST_NOTIFICATIONS),100);return};getSystemService(NotificationManager::class.java).notify(1001,NotificationCompat.Builder(this,"daily_text").setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("오늘의 성구 · $r").setContentText(v).setStyle(NotificationCompat.BigTextStyle().bigText(v)).build())}
+            fun channel(){if(Build.VERSION.SDK_INT>=26)getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("daily_text","오늘의 성구",NotificationManager.IMPORTANCE_HIGH))}
           }
           EOF
       - name: Build Debug APK
         run: gradle :app:assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: daily-text-now-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: daily-text-now-debug, path: app/build/outputs/apk/debug/app-debug.apk }
